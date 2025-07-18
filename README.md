@@ -1,37 +1,37 @@
 # TheOption Real-Time Trading Signal Tool
 
-A sophisticated binary options trading signal application that uses **100% real-time data** from the TheOption platform API. Features advanced technical analysis and professional trading signals for jp.theoption.com.
+A sophisticated binary options trading signal application that uses 100% real-time data from the TheOption platform API. Features advanced technical analysis and professional trading signals for jp.theoption.com.
 
-## 🚀 Key Features
+## Key Features
 
 ### Real-Time API Integration
-- **Direct TheOption API Connection** - Live data from https://platformapidemo.theoption.com
-- **Real-Time OHLC Charts** - Live candlestick and line charts
-- **Live Account Balance** - Real-time trader balance monitoring
-- **No Mock Data** - 100% authentic market data only
+- Direct TheOption API Connection - Live data from https://platformapidemo.theoption.com
+- Real-Time OHLC Charts - Live candlestick and line charts
+- Live Account Balance - Real-time trader balance monitoring
+- No Mock Data - 100% authentic market data only
 
 ### Advanced Signal Generation
-- **Technical Analysis Based** - Uses real market data for signal generation
-- **Multiple Indicators** - Bollinger Bands (±2σ, ±3σ), EMA20, RSI(14)
-- **70%+ Confidence Threshold** - Only high-reliability signals
-- **15-Second Entry Window** - Precise timing with countdown
+- Technical Analysis Based - Uses real market data for signal generation
+- Multiple Indicators - Bollinger Bands (±2σ, ±3σ), EMA20, RSI(14)
+- 70%+ Confidence Threshold - Only high-reliability signals
+- 15-Second Entry Window - Precise timing with countdown
 
 ### Professional Trading Features
-- **One-Click Trading** - Direct jp.theoption.com integration
-- **Real-Time Notifications** - Push alerts for signal generation
-- **Candlestick Pattern Analysis** - Doji, Hammer, Shooting Star patterns
-- **Mobile Responsive** - Works on all devices
+- One-Click Trading - Direct jp.theoption.com integration
+- Real-Time Notifications - Push alerts for signal generation
+- Candlestick Pattern Analysis - Doji, Hammer, Shooting Star patterns
+- Mobile Responsive - Works on all devices
 
-## 🛠 Technology Stack
+## Technology Stack
 
-- **Next.js 14** with TypeScript and App Router
-- **React 18** with modern hooks
-- **Chart.js** with financial charting extensions
-- **Zustand** for state management
-- **Tailwind CSS** for styling
-- **TheOption API** for real-time data
+- Next.js 14 with TypeScript and App Router
+- React 18 with modern hooks
+- Chart.js with financial charting extensions
+- Zustand for state management
+- Tailwind CSS for styling
+- TheOption API for real-time data
 
-## 📦 Installation & Setup
+## Installation & Setup
 
 ### Prerequisites
 - Node.js 18.0 or higher
@@ -41,24 +41,24 @@ A sophisticated binary options trading signal application that uses **100% real-
 
 ### Quick Start
 
-1. **Clone and Install**
+1. Clone and Install
 ```bash
 git clone [repository-url]
 cd theoption-tradingview
 npm install
 ```
 
-2. **Start Application**
+2. Start Application
 ```bash
 npm run dev
 ```
 
-3. **Open Browser**
+3. Open Browser
 ```
 http://localhost:3000
 ```
 
-4. **Configure API** (Optional)
+4. Configure API (Optional)
    - Click the API status indicator
    - Enter your API key if available
    - The app works without API key for demo access
@@ -67,11 +67,11 @@ http://localhost:3000
 
 ### TheOption Platform API
 
-**Base URL:** `https://platformapidemo.theoption.com`
+Base URL: `https://platformapidemo.theoption.com`
 
-**Supported Endpoints:**
+Supported Endpoints:
 - `GetTraderBalance` - Live account balance
-- `GetQuotes` - Real-time currency quotes  
+- `GetQuotes` - Real-time currency quotes
 - `GetChartData` - Historical OHLC data
 - `GetMarketData` - Market information
 
@@ -89,10 +89,10 @@ Live Balance   Indicators      Pattern Analysis    Notifications
 
 The application provides real-time API connection monitoring:
 
-- **🟢 リアルタイムAPI接続中** - Connected and receiving data
-- **🔴 API接続エラー** - Connection failed, check network/API
+- リアルタイムAPI接続中 - Connected and receiving data
+- API接続エラー - Connection failed, check network/API
 
-## 📊 Trading Signal Generation
+## Trading Signal Generation
 
 ### Technical Analysis Engine
 
@@ -100,13 +100,13 @@ The application uses sophisticated technical analysis on real market data:
 
 #### Signal Conditions
 
-**HIGH (Call) Signals:**
+HIGH (Call) Signals:
 - Price touches Bollinger Band -3σ
 - RSI ≤ 30 (oversold)
 - EMA20 horizontal trend
 - Sufficient trading volume
 
-**LOW (Put) Signals:**
+LOW (Put) Signals:
 - Price touches Bollinger Band +3σ  
 - RSI ≥ 70 (overbought)
 - EMA20 horizontal trend
@@ -122,51 +122,51 @@ Base Confidence: 35% (for BB extreme + RSI condition)
 
 ### Real-Time Processing
 
-- **Data Update Frequency:** Every 30 seconds
-- **Signal Check Frequency:** Every 60 seconds
-- **Minimum Signal Interval:** 2 minutes
-- **Signal Validity:** 15 seconds
+- Data Update Frequency: Every 30 seconds
+- Signal Check Frequency: Every 60 seconds
+- Minimum Signal Interval: 2 minutes
+- Signal Validity: 15 seconds
 
-## 🎯 Usage Guide
+## Usage Guide
 
-### Getting Started
+### Gting Started
 
-1. **Launch Application**
+1. Launch Application
    - Start with `npm run dev`
    - Check API connection status (top bar)
 
-2. **Monitor Real-Time Data**
+2. Monitor Real-Time Data
    - View live price charts
    - Watch technical indicators
    - Check account balance (if API key configured)
 
-3. **Wait for Signals**
+3. Wait for Signals
    - Signals appear as arrows on chart
    - Check confidence level (70%+ only)
    - Note the 15-second countdown
 
-4. **Execute Trades**
+4. Execute Trades
    - Click signal arrows
    - Redirects to jp.theoption.com
    - Trade parameters pre-filled
 
 ### Recommended Settings
 
-**Currency Pairs:**
+Currency Pairs:
 - USD/JPY (Best performance)
 - EUR/USD
 - GBP/JPY
 
-**Trading Hours (JST):**
+Trading Hours (JST):
 - Tokyo Session: 09:00-11:00
 - Europe Session: 15:00-17:00
 
-**Risk Management:**
+Risk Management:
 - Position Size: 2-5% of account
 - Daily Loss Limit: 10% of account
 - Max Consecutive Trades: 3
 
-## ⚙️ Configuration
+## Configuration
 
 ### API Key Setup
 
@@ -177,25 +177,25 @@ Base Confidence: 35% (for BB extreme + RSI condition)
 
 ### Chart Settings
 
-- **Chart Type:** Line or Candlestick
-- **Indicators:** Toggle BB, EMA20, RSI
-- **Timeframe:** 1-minute (optimal for binary options)
+- Chart Type: Line or Candlestick
+- Indicators: Toggle BB, EMA20, RSI
+- Timeframe: 1-minute (optimal for binary options)
 
 ## 🔧 Development & Troubleshooting
 
 ### Common Issues
 
-**API Connection Failed:**
+API Connection Failed:
 - Check internet connection
 - Verify API endpoint accessibility
 - Try reconnecting from status panel
 
-**No Chart Data:**
+No Chart Data:
 - Ensure API is connected
 - Check browser console for errors
 - Refresh and wait for data load
 
-**No Signals Generated:**
+No Signals Generated:
 - Wait for market conditions to align
 - Check if outside trading hours
 - Verify technical conditions are met
@@ -207,8 +207,8 @@ Base Confidence: 35% (for BB extreme + RSI condition)
 npm run dev
 
 # Check console for API status:
-# 🟢 リアルタイム自動シグナル生成を開始
-# 🎯 リアルタイムシグナル生成: USDJPY HIGH (信頼度: 85%)
+# リアルタイム自動シグナル生成を開始
+# リアルタイムシグナル生成: USDJPY HIGH (信頼度: 85%)
 ```
 
 ### Performance Monitoring
@@ -218,7 +218,7 @@ npm run dev
 - Automatic reconnection on network issues
 - Error handling with user feedback
 
-## ⚠️ Important Disclaimers
+## Important Disclaimers
 
 ### Trading Risks
 - Binary options trading involves substantial risk
@@ -238,7 +238,7 @@ npm run dev
 - Signal accuracy depends on market volatility
 - No guaranteed trading outcomes
 
-## 📞 Support
+## Support
 
 ### Technical Issues
 - Check API connection status first
@@ -251,7 +251,3 @@ npm run dev
 - Practice with demo account first
 - Understand binary options mechanics
 - Implement proper risk management
-
----
-
-**Note:** This application provides trading signals based on technical analysis of real market data. It does not guarantee trading success and should be used in conjunction with proper risk management and trading education. 

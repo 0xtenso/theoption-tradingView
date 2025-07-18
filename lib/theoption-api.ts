@@ -1,17 +1,18 @@
 import { OHLC, MarketData, TradingPair, TimeFrame } from '@/types/trading';
 
 // TheOption API Configuration
-const API_BASE_URL = 'https://platformapidemo.theoption.com';
-const CLIENT_SERVICE_URL = `${API_BASE_URL}/Client.svc`;
+// Use the correct production API base URL for jp.theoption.com
+const API_BASE_URL = 'https://jp.theoption.com';
+const CLIENT_SERVICE_URL = `${API_BASE_URL}/api`;
 
-// API Endpoints
+// API Endpoints (adjusted for jp.theoption.com)
 const ENDPOINTS = {
-  TRADER_BALANCE: `${CLIENT_SERVICE_URL}/GetTraderBalance`,
-  MARKET_DATA: `${CLIENT_SERVICE_URL}/GetMarketData`,
-  CHART_DATA: `${CLIENT_SERVICE_URL}/GetChartData`,
-  ASSET_LIST: `${CLIENT_SERVICE_URL}/GetAssetList`,
-  QUOTES: `${CLIENT_SERVICE_URL}/GetQuotes`,
-  OPERATOR_SITE_ACTIVE: `${CLIENT_SERVICE_URL}/IsOperatorSiteActive`,
+  TRADER_BALANCE: `${CLIENT_SERVICE_URL}/trader/balance`,
+  MARKET_DATA: `${CLIENT_SERVICE_URL}/market/data`,
+  CHART_DATA: `${CLIENT_SERVICE_URL}/market/chart`,
+  ASSET_LIST: `${CLIENT_SERVICE_URL}/market/assets`,
+  QUOTES: `${CLIENT_SERVICE_URL}/market/quotes`,
+  OPERATOR_SITE_ACTIVE: `${CLIENT_SERVICE_URL}/platform/status`,
 } as const;
 
 // TheOption API Response Types
@@ -93,20 +94,19 @@ class TheOptionAPIService {
   private async rateLimit(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
-    
     if (timeSinceLastRequest < this.requestDelay) {
-      await new Promise(resolve => 
+      await new Promise(resolve =>
         setTimeout(resolve, this.requestDelay - timeSinceLastRequest)
       );
     }
-    
     this.lastRequestTime = Date.now();
   }
 
-  // Generic API request method
+  // Generic API request method with 404 fallback for GET/POST
   private async makeRequest<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    fallbackMethod?: 'GET' | 'POST'
   ): Promise<T> {
     await this.rateLimit();
 
@@ -127,8 +127,25 @@ class TheOptionAPIService {
 
     try {
       const response = await fetch(endpoint, config);
-      
+
       if (!response.ok) {
+        // If 404 and fallbackMethod is set, try fallback
+        if (response.status === 404 && fallbackMethod) {
+          // Try fallback method (switch GET <-> POST)
+          const fallbackConfig: RequestInit = {
+            ...config,
+            method: fallbackMethod,
+          };
+          if (fallbackMethod === 'GET') {
+            delete fallbackConfig.body;
+          }
+          const fallbackResponse = await fetch(endpoint, fallbackConfig);
+          if (!fallbackResponse.ok) {
+            throw new Error(`API request failed: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
+          }
+          const fallbackData = await fallbackResponse.json();
+          return fallbackData as T;
+        }
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
 
@@ -143,48 +160,30 @@ class TheOptionAPIService {
   // Check if operator site is active
   async isOperatorSiteActive(): Promise<TheOptionOperatorSiteStatus> {
     try {
-      // Try POST method first (as suggested by API testing)
-      let response: TheOptionOperatorSiteStatus;
-      
+      // Try POST first, fallback to GET if 404
       try {
-        response = await this.makeRequest<TheOptionOperatorSiteStatus>(
-          ENDPOINTS.OPERATOR_SITE_ACTIVE, 
+        return await this.makeRequest<TheOptionOperatorSiteStatus>(
+          ENDPOINTS.OPERATOR_SITE_ACTIVE,
           {
             method: 'POST',
-            body: JSON.stringify({}), // Empty body for POST
-          }
+            body: JSON.stringify({}),
+          },
+          'GET'
         );
       } catch (postError) {
-        // If POST fails, try GET method
-        console.warn('POST request failed, trying GET:', postError);
-        
-        try {
-          response = await this.makeRequest<TheOptionOperatorSiteStatus>(
-            ENDPOINTS.OPERATOR_SITE_ACTIVE, 
-            {
-              method: 'GET',
-            }
-          );
-        } catch (getError) {
-          // If both methods fail, return a reasonable default
-          console.warn('Both POST and GET failed for operator site status');
-          return {
-            IsActive: true, // Assume active if we can't check
-            Success: false,
-            ErrorMessage: 'Unable to verify platform status - assuming active',
-            Message: 'Status check unavailable',
-          };
-        }
+        // If both fail, return a reasonable default
+        console.warn('Both POST and GET failed for operator site status');
+        return {
+          IsActive: true,
+          Success: false,
+          ErrorMessage: 'Unable to verify platform status - assuming active',
+          Message: 'Status check unavailable',
+        };
       }
-      
-      console.log('Operator Site Status Response:', response);
-      return response;
     } catch (error) {
       console.error('Failed to check operator site status:', error);
-      
-      // Return a safe fallback response
       return {
-        IsActive: true, // Assume platform is active if we can't verify
+        IsActive: true,
         Success: false,
         ErrorMessage: error instanceof Error ? error.message : 'Failed to check site status',
         Message: 'Defaulting to active status due to API unavailability',
@@ -192,30 +191,34 @@ class TheOptionAPIService {
     }
   }
 
-  // Get trader balance
+  // Get trader balance (try POST, fallback to GET if 404)
   async getTraderBalance(): Promise<TheOptionBalance> {
-    return this.makeRequest<TheOptionBalance>(ENDPOINTS.TRADER_BALANCE, {
-      method: 'POST',
-    });
+    try {
+      return await this.makeRequest<TheOptionBalance>(
+        ENDPOINTS.TRADER_BALANCE,
+        { method: 'POST' },
+        'GET'
+      );
+    } catch (error) {
+      console.error('Failed to get trader balance:', error);
+      throw error;
+    }
   }
 
-  // Get real-time quotes
+  // Get real-time quotes (GET only)
   async getQuotes(assets?: string[]): Promise<TheOptionQuote[]> {
     const params = new URLSearchParams();
     if (assets && assets.length > 0) {
       params.append('assets', assets.join(','));
     }
-
     const url = `${ENDPOINTS.QUOTES}${params.toString() ? '?' + params.toString() : ''}`;
-    
     const response = await this.makeRequest<{ Data: TheOptionQuote[]; Success: boolean }>(url, {
       method: 'GET',
     });
-
     return response.Data || [];
   }
 
-  // Get chart data for specific asset and timeframe
+  // Get chart data for specific asset and timeframe (GET only)
   async getChartData(
     asset: string,
     timeframe: string,
@@ -226,17 +229,13 @@ class TheOptionAPIService {
       timeframe,
       count: count.toString(),
     });
-
     const url = `${ENDPOINTS.CHART_DATA}?${params.toString()}`;
-    
     const response = await this.makeRequest<TheOptionMarketDataResponse>(url, {
       method: 'GET',
     });
-
     if (!response.Success) {
       throw new Error(response.ErrorMessage || 'Failed to fetch chart data');
     }
-
     return response.Data || [];
   }
 
@@ -261,7 +260,7 @@ class TheOptionAPIService {
     try {
       const asset = ASSET_MAPPING[pair];
       const timeframeStr = TIMEFRAME_MAPPING[timeframe];
-      
+
       if (!asset) {
         throw new Error(`Unsupported trading pair: ${pair}`);
       }
@@ -269,7 +268,7 @@ class TheOptionAPIService {
       // Get chart data
       const chartData = await this.getChartData(asset, timeframeStr, count);
       const ohlcData = this.convertToOHLC(chartData);
-      
+
       // Get current price from latest candle or quotes
       let currentPrice = 0;
       if (ohlcData.length > 0) {
@@ -288,7 +287,6 @@ class TheOptionAPIService {
       };
     } catch (error) {
       console.error(`Failed to get market data for ${pair}:`, error);
-      // Fallback to current mock data if API fails
       throw error;
     }
   }
@@ -297,17 +295,15 @@ class TheOptionAPIService {
   async generateMarketData(pair: TradingPair): Promise<MarketData> {
     try {
       const asset = ASSET_MAPPING[pair];
-      
-      // Get current quote
       const quotes = await this.getQuotes([asset]);
       const quote = quotes.find(q => q.Asset === asset);
-      
+
       if (!quote) {
         throw new Error(`No quote data for ${pair}`);
       }
 
       const price = (quote.Bid + quote.Ask) / 2;
-      
+
       return {
         symbol: pair,
         price,
@@ -316,7 +312,7 @@ class TheOptionAPIService {
         spread: quote.Ask - quote.Bid,
         change: quote.Change,
         changePercent: quote.ChangePercent,
-        volume: 0, // Volume data might not be available in quotes
+        volume: 0,
         timestamp: new Date(quote.LastUpdate).getTime(),
       };
     } catch (error) {
@@ -373,4 +369,4 @@ export async function checkOperatorSiteStatus(): Promise<TheOptionOperatorSiteSt
   return theOptionAPI.isOperatorSiteActive();
 }
 
-export default TheOptionAPIService; 
+export default TheOptionAPIService;
