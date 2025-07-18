@@ -1,18 +1,18 @@
 import { OHLC, MarketData, TradingPair, TimeFrame } from '@/types/trading';
 
 // TheOption API Configuration
-// Use the correct production API base URL for jp.theoption.com
-const API_BASE_URL = 'https://jp.theoption.com';
-const CLIENT_SERVICE_URL = `${API_BASE_URL}/api`;
+// Use the correct API base URL for TheOption platform
+const API_BASE_URL = 'https://platformapi.theoption.com';
+const CLIENT_SERVICE_URL = `${API_BASE_URL}/Client.svc`;
 
-// API Endpoints (adjusted for jp.theoption.com)
+// API Endpoints (adjusted for correct API path)
 const ENDPOINTS = {
-  TRADER_BALANCE: `${CLIENT_SERVICE_URL}/trader/balance`,
-  MARKET_DATA: `${CLIENT_SERVICE_URL}/market/data`,
-  CHART_DATA: `${CLIENT_SERVICE_URL}/market/chart`,
-  ASSET_LIST: `${CLIENT_SERVICE_URL}/market/assets`,
-  QUOTES: `${CLIENT_SERVICE_URL}/market/quotes`,
-  OPERATOR_SITE_ACTIVE: `${CLIENT_SERVICE_URL}/platform/status`,
+  TRADER_BALANCE: `${CLIENT_SERVICE_URL}/GetTraderBalance`,
+  MARKET_DATA: `${CLIENT_SERVICE_URL}/GetMarketData`,
+  CHART_DATA: `${CLIENT_SERVICE_URL}/GetChartData`,
+  ASSET_LIST: `${CLIENT_SERVICE_URL}/GetAssetList`,
+  QUOTES: `${CLIENT_SERVICE_URL}/GetQuotes`,
+  OPERATOR_SITE_ACTIVE: `${CLIENT_SERVICE_URL}/IsOperatorSiteActive`,
 } as const;
 
 // TheOption API Response Types
@@ -131,6 +131,7 @@ class TheOptionAPIService {
       if (!response.ok) {
         // If 404 and fallbackMethod is set, try fallback
         if (response.status === 404 && fallbackMethod) {
+          console.log(`404 error for ${endpoint}, trying ${fallbackMethod} method instead`);
           // Try fallback method (switch GET <-> POST)
           const fallbackConfig: RequestInit = {
             ...config,
@@ -138,6 +139,8 @@ class TheOptionAPIService {
           };
           if (fallbackMethod === 'GET') {
             delete fallbackConfig.body;
+          } else if (fallbackMethod === 'POST' && !fallbackConfig.body) {
+            fallbackConfig.body = JSON.stringify({});
           }
           const fallbackResponse = await fetch(endpoint, fallbackConfig);
           if (!fallbackResponse.ok) {
@@ -196,7 +199,7 @@ class TheOptionAPIService {
     try {
       return await this.makeRequest<TheOptionBalance>(
         ENDPOINTS.TRADER_BALANCE,
-        { method: 'POST' },
+        { method: 'POST', body: JSON.stringify({}) },
         'GET'
       );
     } catch (error) {
@@ -212,10 +215,15 @@ class TheOptionAPIService {
       params.append('assets', assets.join(','));
     }
     const url = `${ENDPOINTS.QUOTES}${params.toString() ? '?' + params.toString() : ''}`;
-    const response = await this.makeRequest<{ Data: TheOptionQuote[]; Success: boolean }>(url, {
-      method: 'GET',
-    });
-    return response.Data || [];
+    try {
+      const response = await this.makeRequest<{ Data: TheOptionQuote[]; Success: boolean }>(url, {
+        method: 'GET',
+      }, 'POST');
+      return response.Data || [];
+    } catch (error) {
+      console.error('Failed to get quotes:', error);
+      return [];
+    }
   }
 
   // Get chart data for specific asset and timeframe (GET only)
@@ -230,13 +238,18 @@ class TheOptionAPIService {
       count: count.toString(),
     });
     const url = `${ENDPOINTS.CHART_DATA}?${params.toString()}`;
-    const response = await this.makeRequest<TheOptionMarketDataResponse>(url, {
-      method: 'GET',
-    });
-    if (!response.Success) {
-      throw new Error(response.ErrorMessage || 'Failed to fetch chart data');
+    try {
+      const response = await this.makeRequest<TheOptionMarketDataResponse>(url, {
+        method: 'GET',
+      }, 'POST');
+      if (!response.Success) {
+        throw new Error(response.ErrorMessage || 'Failed to fetch chart data');
+      }
+      return response.Data || [];
+    } catch (error) {
+      console.error(`Failed to get chart data for ${asset}:`, error);
+      return [];
     }
-    return response.Data || [];
   }
 
   // Convert TheOption data to our OHLC format
