@@ -16,6 +16,28 @@ const ENDPOINTS = {
 } as const;
 
 // TheOption API Response Types
+interface TheOptionBalanceResponse {
+  data: {
+    balanceInformation: {
+      balance: number;
+      bonusBalance: number;
+      BonusInfo: any;
+      Cashback: any;
+    };
+    retentionInformation: {
+      status: string;
+      campaignName: string;
+      errors: string[];
+      data: Array<{
+        Key: string;
+        Value: string;
+      }>;
+    };
+  };
+  status: string;
+  timestamp: string;
+}
+
 interface TheOptionBalance {
   Balance: number;
   Currency: string;
@@ -46,6 +68,14 @@ interface TheOptionMarketDataResponse {
   Data: TheOptionChartPoint[];
   Success: boolean;
   ErrorMessage?: string;
+}
+
+interface TheOptionOperatorSiteStatusResponse {
+  data: {
+    isActive: boolean;
+  };
+  status: string;
+  timestamp: string;
 }
 
 interface TheOptionOperatorSiteStatus {
@@ -85,6 +115,7 @@ class TheOptionAPIService {
   private sessionToken?: string;
   private lastRequestTime = 0;
   private requestDelay = 50; // Reduced delay for real-time updates (ms)
+  private sessionID = "BBDB8E9FD9CCEC8E399ED56BD25DCB"; // Default session ID
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey;
@@ -163,30 +194,47 @@ class TheOptionAPIService {
   // Check if operator site is active
   async isOperatorSiteActive(): Promise<TheOptionOperatorSiteStatus> {
     try {
-      // Try POST first, fallback to GET if 404
+      // Try POST first with the correct endpoint
       try {
-        return await this.makeRequest<TheOptionOperatorSiteStatus>(
+        const response = await this.makeRequest<TheOptionOperatorSiteStatusResponse>(
           ENDPOINTS.OPERATOR_SITE_ACTIVE,
           {
             method: 'POST',
-            body: JSON.stringify({}),
-          },
-          'GET'
+            body: JSON.stringify({
+              operatorName: "TheOption"
+            }),
+          }
         );
-      } catch (postError) {
-        // If both fail, return a reasonable default
-        console.warn('Both POST and GET failed for operator site status');
+        
+        // Convert the new response format to our internal format
         return {
-          IsActive: true,
-          Success: false,
-          ErrorMessage: 'Unable to verify platform status - assuming active',
-          Message: 'Status check unavailable',
+          IsActive: response.data.isActive,
+          Success: response.status === "success",
+          Message: response.status === "success" ? "Platform is operational" : "Platform status check failed"
+        };
+      } catch (postError) {
+        // If POST fails with 404, try alternative endpoint
+        console.log("POST request failed for operator status, trying alternative endpoint");
+        
+        // Try alternative endpoint with /api/ prefix
+        const alternativeEndpoint = `${API_BASE_URL}/api/platform/status`;
+        const response = await this.makeRequest<TheOptionOperatorSiteStatusResponse>(
+          alternativeEndpoint,
+          {
+            method: 'GET',
+          }
+        );
+        
+        return {
+          IsActive: response.data.isActive,
+          Success: response.status === "success",
+          Message: response.status === "success" ? "Platform is operational" : "Platform status check failed"
         };
       }
     } catch (error) {
       console.error('Failed to check operator site status:', error);
       return {
-        IsActive: true,
+        IsActive: true, // Default to true to prevent blocking functionality
         Success: false,
         ErrorMessage: error instanceof Error ? error.message : 'Failed to check site status',
         Message: 'Defaulting to active status due to API unavailability',
@@ -197,14 +245,40 @@ class TheOptionAPIService {
   // Get trader balance (try POST, fallback to GET if 404)
   async getTraderBalance(): Promise<TheOptionBalance> {
     try {
-      return await this.makeRequest<TheOptionBalance>(
+      // Use the updated API request format with the correct session ID
+      const response = await this.makeRequest<TheOptionBalanceResponse>(
         ENDPOINTS.TRADER_BALANCE,
-        { method: 'POST', body: JSON.stringify({}) },
+        { 
+          method: 'POST', 
+          body: JSON.stringify({
+            sessionID: this.sessionID,
+            returnWithBonus: "true",
+            campaignName: "GiveIncentives"
+          }) 
+        },
         'GET'
       );
+      
+      // Convert the new response format to our internal format
+      if (response.status === "success" && response.data?.balanceInformation) {
+        return {
+          Balance: response.data.balanceInformation.balance,
+          Currency: "JPY", // Default currency
+          Demo: true, // Assuming demo account
+          Success: true
+        };
+      } else {
+        throw new Error("Invalid balance response format");
+      }
     } catch (error) {
       console.error('Failed to get trader balance:', error);
-      throw error;
+      return {
+        Balance: 0,
+        Currency: "JPY",
+        Demo: true,
+        Success: false,
+        ErrorMessage: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 
@@ -226,7 +300,7 @@ class TheOptionAPIService {
     }
   }
 
-  // Get chart data for specific asset and timeframe (GET only)
+  // Get chart data for specific asset and timeframe (try both GET and POST)
   async getChartData(
     asset: string,
     timeframe: string,
@@ -238,14 +312,38 @@ class TheOptionAPIService {
       count: count.toString(),
     });
     const url = `${ENDPOINTS.CHART_DATA}?${params.toString()}`;
+    
     try {
-      const response = await this.makeRequest<TheOptionMarketDataResponse>(url, {
-        method: 'GET',
-      }, 'POST');
-      if (!response.Success) {
-        throw new Error(response.ErrorMessage || 'Failed to fetch chart data');
+      // Try GET first with fallback to POST
+      try {
+        const response = await this.makeRequest<TheOptionMarketDataResponse>(url, {
+          method: 'GET',
+        }, 'POST');
+        
+        if (!response.Success) {
+          throw new Error(response.ErrorMessage || 'Failed to fetch chart data');
+        }
+        return response.Data || [];
+      } catch (getError) {
+        // If GET fails, try POST with parameters in body
+        console.log(`GET request failed for chart data, trying POST method`);
+        const response = await this.makeRequest<TheOptionMarketDataResponse>(
+          ENDPOINTS.CHART_DATA,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              asset,
+              timeframe,
+              count
+            }),
+          }
+        );
+        
+        if (!response.Success) {
+          throw new Error(response.ErrorMessage || 'Failed to fetch chart data');
+        }
+        return response.Data || [];
       }
-      return response.Data || [];
     } catch (error) {
       console.error(`Failed to get chart data for ${asset}:`, error);
       return [];
@@ -342,6 +440,11 @@ class TheOptionAPIService {
   // Set session token
   setSessionToken(token: string): void {
     this.sessionToken = token;
+  }
+  
+  // Set session ID
+  setSessionID(id: string): void {
+    this.sessionID = id;
   }
 }
 
