@@ -1,41 +1,15 @@
 import { OHLC, MarketData, TradingPair, TimeFrame } from '@/types/trading';
 
-// TheOption API Configuration
-// Use the correct API base URL for TheOption platform
-const API_BASE_URL = 'https://platformapi.theoption.com';
-const CLIENT_SERVICE_URL = `${API_BASE_URL}/Client.svc`;
+// Alpha Vantage API Configuration
+// Free API for forex and market data
+const API_BASE_URL = 'https://www.alphavantage.co/query';
+const FREE_API_KEY = 'BRAHK3JLYS4NQSPG'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
 
-// API Endpoints (adjusted for correct API path)
-const ENDPOINTS = {
-  TRADER_BALANCE: `${CLIENT_SERVICE_URL}/GetTraderBalance`,
-  MARKET_DATA: `${CLIENT_SERVICE_URL}/GetMarketData`,
-  CHART_DATA: `${CLIENT_SERVICE_URL}/GetChartData`,
-  ASSET_LIST: `${CLIENT_SERVICE_URL}/GetAssetList`,
-  QUOTES: `${CLIENT_SERVICE_URL}/GetQuotes`,
-  OPERATOR_SITE_ACTIVE: `${CLIENT_SERVICE_URL}/IsOperatorSiteActive`,
-} as const;
-
-// TheOption API Response Types
-interface TheOptionBalanceResponse {
-  data: {
-    balanceInformation: {
-      balance: number;
-      bonusBalance: number;
-      BonusInfo: any;
-      Cashback: any;
-    };
-    retentionInformation: {
-      status: string;
-      campaignName: string;
-      errors: string[];
-      data: Array<{
-        Key: string;
-        Value: string;
-      }>;
-    };
-  };
-  status: string;
-  timestamp: string;
+// Alpha Vantage API Response Types
+interface AlphaVantageBalanceResponse {
+  balance: number;
+  currency: string;
+  demo: boolean;
 }
 
 interface TheOptionBalance {
@@ -71,11 +45,8 @@ interface TheOptionMarketDataResponse {
 }
 
 interface TheOptionOperatorSiteStatusResponse {
-  data: {
-    isActive: boolean;
-  };
   status: string;
-  timestamp: string;
+  isActive: boolean;
 }
 
 interface TheOptionOperatorSiteStatus {
@@ -85,43 +56,72 @@ interface TheOptionOperatorSiteStatus {
   ErrorMessage?: string;
 }
 
-// TheOption Asset mapping
-const ASSET_MAPPING: Record<TradingPair, string> = {
-  'USDJPY': 'USD/JPY',
-  'EURUSD': 'EUR/USD',
-  'GBPJPY': 'GBP/JPY',
-  'EURJPY': 'EUR/JPY',
-  'AUDUSD': 'AUD/USD',
-  'GBPUSD': 'GBP/USD',
-  'USDCAD': 'USD/CAD',
-  'USDCHF': 'USD/CHF',
-  'NZDUSD': 'NZD/USD',
-  'EURGBP': 'EUR/GBP',
+// Alpha Vantage FX Real-time Exchange Rate Response
+interface AlphaVantageRealtimeResponse {
+  "Realtime Currency Exchange Rate": {
+    "1. From_Currency Code": string;
+    "2. From_Currency Name": string;
+    "3. To_Currency Code": string;
+    "4. To_Currency Name": string;
+    "5. Exchange Rate": string;
+    "6. Last Refreshed": string;
+    "7. Time Zone": string;
+    "8. Bid Price": string;
+    "9. Ask Price": string;
+  };
+}
+
+// Alpha Vantage FX Intraday Response
+interface AlphaVantageIntradayResponse {
+  "Meta Data": {
+    "1. Information": string;
+    "2. From Symbol": string;
+    "3. To Symbol": string;
+    "4. Last Refreshed": string;
+    "5. Interval": string;
+    "6. Output Size": string;
+    "7. Time Zone": string;
+  };
+  [key: string]: any; // Time series data
+}
+
+// Asset mapping for Alpha Vantage
+const ASSET_MAPPING: Record<TradingPair, { from: string; to: string }> = {
+  'USDJPY': { from: 'USD', to: 'JPY' },
+  'EURUSD': { from: 'EUR', to: 'USD' },
+  'GBPJPY': { from: 'GBP', to: 'JPY' },
+  'EURJPY': { from: 'EUR', to: 'JPY' },
+  'AUDUSD': { from: 'AUD', to: 'USD' },
+  'GBPUSD': { from: 'GBP', to: 'USD' },
+  'USDCAD': { from: 'USD', to: 'CAD' },
+  'USDCHF': { from: 'USD', to: 'CHF' },
+  'NZDUSD': { from: 'NZD', to: 'USD' },
+  'EURGBP': { from: 'EUR', to: 'GBP' },
 };
 
-// Timeframe mapping
+// Timeframe mapping for Alpha Vantage
 const TIMEFRAME_MAPPING: Record<TimeFrame, string> = {
-  [TimeFrame.M1]: '1',
-  [TimeFrame.M5]: '5',
-  [TimeFrame.M15]: '15',
-  [TimeFrame.M30]: '30',
-  [TimeFrame.H1]: '60',
-  [TimeFrame.H4]: '240',
-  [TimeFrame.D1]: '1440',
+  [TimeFrame.M1]: '1min',
+  [TimeFrame.M5]: '5min',
+  [TimeFrame.M15]: '15min',
+  [TimeFrame.M30]: '30min',
+  [TimeFrame.H1]: '60min',
+  [TimeFrame.H4]: '60min', // Alpha Vantage doesn't have 4h, use 1h
+  [TimeFrame.D1]: 'daily',
 };
 
 class TheOptionAPIService {
-  private apiKey?: string;
+  private apiKey: string;
   private sessionToken?: string;
   private lastRequestTime = 0;
-  private requestDelay = 50; // Reduced delay for real-time updates (ms)
-  private sessionID = "BBDB8E9FD9CCEC8E399ED56BD25DCB"; // Default session ID
+  private requestDelay = 12000; // Alpha Vantage free tier: 5 requests per minute
+  private sessionID = "DEMO_SESSION"; // Demo session ID
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey;
+    this.apiKey = apiKey || FREE_API_KEY;
   }
 
-  // Rate limiting helper
+  // Rate limiting helper - Alpha Vantage free tier is 5 requests per minute
   private async rateLimit(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
@@ -133,19 +133,16 @@ class TheOptionAPIService {
     this.lastRequestTime = Date.now();
   }
 
-  // Generic API request method with 404 fallback for GET/POST
+  // Generic API request method
   private async makeRequest<T>(
-    endpoint: string,
-    options: RequestInit = {},
-    fallbackMethod?: 'GET' | 'POST'
+    url: string,
+    options: RequestInit = {}
   ): Promise<T> {
     await this.rateLimit();
 
     const defaultHeaders = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
-      ...(this.sessionToken && { 'X-Session-Token': this.sessionToken }),
     };
 
     const config: RequestInit = {
@@ -157,124 +154,68 @@ class TheOptionAPIService {
     };
 
     try {
-      const response = await fetch(endpoint, config);
+      const response = await fetch(url, config);
 
       if (!response.ok) {
-        // If 404 and fallbackMethod is set, try fallback
-        if (response.status === 404 && fallbackMethod) {
-          console.log(`404 error for ${endpoint}, trying ${fallbackMethod} method instead`);
-          // Try fallback method (switch GET <-> POST)
-          const fallbackConfig: RequestInit = {
-            ...config,
-            method: fallbackMethod,
-          };
-          if (fallbackMethod === 'GET') {
-            delete fallbackConfig.body;
-          } else if (fallbackMethod === 'POST' && !fallbackConfig.body) {
-            fallbackConfig.body = JSON.stringify({});
-          }
-          const fallbackResponse = await fetch(endpoint, fallbackConfig);
-          if (!fallbackResponse.ok) {
-            throw new Error(`API request failed: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
-          }
-          const fallbackData = await fallbackResponse.json();
-          return fallbackData as T;
-        }
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
+      
+      // Check for Alpha Vantage API errors
+      if (data['Error Message']) {
+        throw new Error(`Alpha Vantage API Error: ${data['Error Message']}`);
+      }
+      
+      if (data['Note']) {
+        throw new Error(`Alpha Vantage API Note: ${data['Note']}`);
+      }
+
       return data as T;
     } catch (error) {
-      console.error(`API Error (${endpoint}):`, error);
+      console.error(`API Error (${url}):`, error);
       throw error;
     }
   }
 
-  // Check if operator site is active
+  // Check if operator site is active (simulated for Alpha Vantage)
   async isOperatorSiteActive(): Promise<TheOptionOperatorSiteStatus> {
     try {
-      // Try POST first with the correct endpoint
-      try {
-        const response = await this.makeRequest<TheOptionOperatorSiteStatusResponse>(
-          ENDPOINTS.OPERATOR_SITE_ACTIVE,
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              operatorName: "TheOption"
-            }),
-          }
-        );
-        
-        // Convert the new response format to our internal format
-        return {
-          IsActive: response.data.isActive,
-          Success: response.status === "success",
-          Message: response.status === "success" ? "Platform is operational" : "Platform status check failed"
-        };
-      } catch (postError) {
-        // If POST fails with 404, try alternative endpoint
-        console.log("POST request failed for operator status, trying alternative endpoint");
-        
-        // Try alternative endpoint with /api/ prefix
-        const alternativeEndpoint = `${API_BASE_URL}/api/platform/status`;
-        const response = await this.makeRequest<TheOptionOperatorSiteStatusResponse>(
-          alternativeEndpoint,
-          {
-            method: 'GET',
-          }
-        );
-        
-        return {
-          IsActive: response.data.isActive,
-          Success: response.status === "success",
-          Message: response.status === "success" ? "Platform is operational" : "Platform status check failed"
-        };
-      }
-    } catch (error) {
-      console.error('Failed to check operator site status:', error);
+      // Test with a simple API call to check if Alpha Vantage is responding
+      const testUrl = `${API_BASE_URL}?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey=${this.apiKey}`;
+      await this.makeRequest<AlphaVantageRealtimeResponse>(testUrl);
+      
       return {
-        IsActive: true, // Default to true to prevent blocking functionality
+        IsActive: true,
+        Success: true,
+        Message: "Alpha Vantage API is operational"
+      };
+    } catch (error) {
+      console.error('Failed to check Alpha Vantage API status:', error);
+      return {
+        IsActive: false,
         Success: false,
-        ErrorMessage: error instanceof Error ? error.message : 'Failed to check site status',
-        Message: 'Defaulting to active status due to API unavailability',
+        ErrorMessage: error instanceof Error ? error.message : 'Failed to check API status',
+        Message: 'Alpha Vantage API is not responding',
       };
     }
   }
 
-  // Get trader balance (try POST, fallback to GET if 404)
+  // Get trader balance (simulated for Alpha Vantage)
   async getTraderBalance(): Promise<TheOptionBalance> {
     try {
-      // Use the updated API request format with the correct session ID
-      const response = await this.makeRequest<TheOptionBalanceResponse>(
-        ENDPOINTS.TRADER_BALANCE,
-        { 
-          method: 'POST', 
-          body: JSON.stringify({
-            sessionID: this.sessionID,
-            returnWithBonus: "true",
-            campaignName: "GiveIncentives"
-          }) 
-        },
-        'GET'
-      );
-      
-      // Convert the new response format to our internal format
-      if (response.status === "success" && response.data?.balanceInformation) {
-        return {
-          Balance: response.data.balanceInformation.balance,
-          Currency: "JPY", // Default currency
-          Demo: true, // Assuming demo account
-          Success: true
-        };
-      } else {
-        throw new Error("Invalid balance response format");
-      }
+      // Simulate a demo balance since Alpha Vantage doesn't provide account data
+      return {
+        Balance: 10000, // Demo balance
+        Currency: "USD",
+        Demo: true,
+        Success: true
+      };
     } catch (error) {
       console.error('Failed to get trader balance:', error);
       return {
         Balance: 0,
-        Currency: "JPY",
+        Currency: "USD",
         Demo: true,
         Success: false,
         ErrorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -282,68 +223,100 @@ class TheOptionAPIService {
     }
   }
 
-  // Get real-time quotes (GET only)
+  // Get real-time quotes using Alpha Vantage
   async getQuotes(assets?: string[]): Promise<TheOptionQuote[]> {
-    const params = new URLSearchParams();
-    if (assets && assets.length > 0) {
-      params.append('assets', assets.join(','));
-    }
-    const url = `${ENDPOINTS.QUOTES}${params.toString() ? '?' + params.toString() : ''}`;
     try {
-      const response = await this.makeRequest<{ Data: TheOptionQuote[]; Success: boolean }>(url, {
-        method: 'GET',
-      }, 'POST');
-      return response.Data || [];
+      const quotes: TheOptionQuote[] = [];
+      const pairs = assets || Object.keys(ASSET_MAPPING) as TradingPair[];
+      
+      for (const pairKey of pairs) {
+        const pair = ASSET_MAPPING[pairKey as TradingPair];
+        if (!pair) continue;
+        
+        const url = `${API_BASE_URL}?function=CURRENCY_EXCHANGE_RATE&from_currency=${pair.from}&to_currency=${pair.to}&apikey=${this.apiKey}`;
+        
+        try {
+          const response = await this.makeRequest<AlphaVantageRealtimeResponse>(url);
+          const rate = response["Realtime Currency Exchange Rate"];
+          
+          const bid = parseFloat(rate["8. Bid Price"]);
+          const ask = parseFloat(rate["9. Ask Price"]);
+          const currentRate = parseFloat(rate["5. Exchange Rate"]);
+          
+          quotes.push({
+            Asset: `${pair.from}/${pair.to}`,
+            Bid: bid || currentRate * 0.9999, // Approximate bid if not available
+            Ask: ask || currentRate * 1.0001, // Approximate ask if not available
+            LastUpdate: rate["6. Last Refreshed"],
+            Change: 0, // Alpha Vantage doesn't provide change in this endpoint
+            ChangePercent: 0,
+          });
+        } catch (error) {
+          console.error(`Failed to get quote for ${pairKey}:`, error);
+        }
+      }
+      
+      return quotes;
     } catch (error) {
       console.error('Failed to get quotes:', error);
       return [];
     }
   }
 
-  // Get chart data for specific asset and timeframe (try both GET and POST)
+  // Get chart data using Alpha Vantage FX Intraday
   async getChartData(
     asset: string,
     timeframe: string,
     count: number = 100
   ): Promise<TheOptionChartPoint[]> {
-    const params = new URLSearchParams({
-      asset,
-      timeframe,
-      count: count.toString(),
-    });
-    const url = `${ENDPOINTS.CHART_DATA}?${params.toString()}`;
-    
     try {
-      // Try GET first with fallback to POST
-      try {
-        const response = await this.makeRequest<TheOptionMarketDataResponse>(url, {
-          method: 'GET',
-        }, 'POST');
-        
-        if (!response.Success) {
-          throw new Error(response.ErrorMessage || 'Failed to fetch chart data');
-        }
-        return response.Data || [];
-      } catch (getError) {
-        // If GET fails, try POST with parameters in body
-        console.log(`GET request failed for chart data, trying POST method`);
-        const response = await this.makeRequest<TheOptionMarketDataResponse>(
-          ENDPOINTS.CHART_DATA,
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              asset,
-              timeframe,
-              count
-            }),
-          }
-        );
-        
-        if (!response.Success) {
-          throw new Error(response.ErrorMessage || 'Failed to fetch chart data');
-        }
-        return response.Data || [];
+      // Parse asset string to get from/to currencies
+      const [fromCurrency, toCurrency] = asset.split('/');
+      
+      let url: string;
+      let functionName: string;
+      
+      if (timeframe === 'daily') {
+        functionName = 'FX_DAILY';
+        url = `${API_BASE_URL}?function=${functionName}&from_symbol=${fromCurrency}&to_symbol=${toCurrency}&apikey=${this.apiKey}`;
+      } else {
+        functionName = 'FX_INTRADAY';
+        url = `${API_BASE_URL}?function=${functionName}&from_symbol=${fromCurrency}&to_symbol=${toCurrency}&interval=${timeframe}&apikey=${this.apiKey}`;
       }
+      
+      const response = await this.makeRequest<AlphaVantageIntradayResponse>(url);
+      
+      // Find the time series data key
+      const timeSeriesKey = Object.keys(response).find(key => 
+        key.startsWith('Time Series FX') || key.startsWith('Time Series')
+      );
+      
+      if (!timeSeriesKey || !response[timeSeriesKey]) {
+        throw new Error('No time series data found in response');
+      }
+      
+      const timeSeriesData = response[timeSeriesKey];
+      const chartPoints: TheOptionChartPoint[] = [];
+      
+      // Convert Alpha Vantage data to our format
+      const timestamps = Object.keys(timeSeriesData)
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+        .slice(0, count);
+      
+      for (const timestamp of timestamps) {
+        const data = timeSeriesData[timestamp];
+        chartPoints.push({
+          Time: timestamp,
+          Open: parseFloat(data['1. open']),
+          High: parseFloat(data['2. high']),
+          Low: parseFloat(data['3. low']),
+          Close: parseFloat(data['4. close']),
+          Volume: 0, // FX data doesn't have volume
+        });
+      }
+      
+      // Reverse to get chronological order
+      return chartPoints.reverse();
     } catch (error) {
       console.error(`Failed to get chart data for ${asset}:`, error);
       return [];
@@ -369,24 +342,26 @@ class TheOptionAPIService {
     count: number = 100
   ): Promise<{ ohlcData: OHLC[]; currentPrice: number }> {
     try {
-      const asset = ASSET_MAPPING[pair];
+      const assetMapping = ASSET_MAPPING[pair];
       const timeframeStr = TIMEFRAME_MAPPING[timeframe];
 
-      if (!asset) {
+      if (!assetMapping) {
         throw new Error(`Unsupported trading pair: ${pair}`);
       }
+
+      const asset = `${assetMapping.from}/${assetMapping.to}`;
 
       // Get chart data
       const chartData = await this.getChartData(asset, timeframeStr, count);
       const ohlcData = this.convertToOHLC(chartData);
 
-      // Get current price from latest candle or quotes
+      // Get current price from latest candle or real-time quote
       let currentPrice = 0;
       if (ohlcData.length > 0) {
         currentPrice = ohlcData[ohlcData.length - 1].close;
       } else {
-        // Fallback: get from quotes
-        const quotes = await this.getQuotes([asset]);
+        // Fallback: get from real-time quote
+        const quotes = await this.getQuotes([pair]);
         if (quotes.length > 0) {
           currentPrice = (quotes[0].Bid + quotes[0].Ask) / 2;
         }
@@ -402,12 +377,11 @@ class TheOptionAPIService {
     }
   }
 
-  // Generate MarketData object from TheOption data
+  // Generate MarketData object from Alpha Vantage data
   async generateMarketData(pair: TradingPair): Promise<MarketData> {
     try {
-      const asset = ASSET_MAPPING[pair];
-      const quotes = await this.getQuotes([asset]);
-      const quote = quotes.find(q => q.Asset === asset);
+      const quotes = await this.getQuotes([pair]);
+      const quote = quotes.find(q => q.Asset === `${ASSET_MAPPING[pair].from}/${ASSET_MAPPING[pair].to}`);
 
       if (!quote) {
         throw new Error(`No quote data for ${pair}`);
@@ -423,7 +397,7 @@ class TheOptionAPIService {
         spread: quote.Ask - quote.Bid,
         change: quote.Change,
         changePercent: quote.ChangePercent,
-        volume: 0,
+        volume: 0, // FX data doesn't have volume
         timestamp: new Date(quote.LastUpdate).getTime(),
       };
     } catch (error) {
@@ -437,12 +411,12 @@ class TheOptionAPIService {
     this.apiKey = apiKey;
   }
 
-  // Set session token
+  // Set session token (not used in Alpha Vantage)
   setSessionToken(token: string): void {
     this.sessionToken = token;
   }
   
-  // Set session ID
+  // Set session ID (not used in Alpha Vantage)
   setSessionID(id: string): void {
     this.sessionID = id;
   }
@@ -480,7 +454,7 @@ export async function fetchTraderBalance(): Promise<TheOptionBalance> {
   return theOptionAPI.getTraderBalance();
 }
 
-// Check if TheOption platform is currently active
+// Check if Alpha Vantage API is currently active
 export async function checkOperatorSiteStatus(): Promise<TheOptionOperatorSiteStatus> {
   return theOptionAPI.isOperatorSiteActive();
 }
