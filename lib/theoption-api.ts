@@ -56,7 +56,7 @@ interface TheOptionOperatorSiteStatus {
   ErrorMessage?: string;
 }
 
-// Alpha Vantage FX Real-time Exchange Rate Response
+// Alpha Vantage FX Real-time Exchange Rate Response (from official docs)
 interface AlphaVantageRealtimeResponse {
   "Realtime Currency Exchange Rate": {
     "1. From_Currency Code": string;
@@ -71,21 +71,21 @@ interface AlphaVantageRealtimeResponse {
   };
 }
 
-// Alpha Vantage FX Intraday Response
-interface AlphaVantageIntradayResponse {
+// Alpha Vantage FX Time Series Response (from official docs)
+interface AlphaVantageFXResponse {
   "Meta Data": {
     "1. Information": string;
     "2. From Symbol": string;
     "3. To Symbol": string;
     "4. Last Refreshed": string;
-    "5. Interval": string;
-    "6. Output Size": string;
+    "5. Interval"?: string;
+    "6. Output Size"?: string;
     "7. Time Zone": string;
   };
-  [key: string]: any; // Time series data
+  [key: string]: any; // Time series data like "Time Series FX (Daily)" or "Time Series FX (5min)"
 }
 
-// Alpha Vantage Global Quote Response
+// Alpha Vantage Global Quote Response (from official docs)
 interface AlphaVantageGlobalQuoteResponse {
   "Global Quote": {
     "01. symbol": string;
@@ -115,7 +115,7 @@ const ASSET_MAPPING: Record<TradingPair, { from: string; to: string }> = {
   'EURGBP': { from: 'EUR', to: 'GBP' },
 };
 
-// Timeframe mapping for Alpha Vantage
+// Timeframe mapping for Alpha Vantage (from official docs)
 const TIMEFRAME_MAPPING: Record<TimeFrame, string> = {
   [TimeFrame.M1]: '1min',
   [TimeFrame.M5]: '5min',
@@ -179,7 +179,7 @@ class TheOptionAPIService {
 
       const data = await response.json();
       
-      // Check for Alpha Vantage API errors
+      // Check for Alpha Vantage API errors (from official docs)
       if (data['Error Message']) {
         throw new Error(`Alpha Vantage API Error: ${data['Error Message']}`);
       }
@@ -199,10 +199,10 @@ class TheOptionAPIService {
     }
   }
 
-  // Check if operator site is active (test with a simple API call)
+  // Check if operator site is active (test with Exchange Rates API)
   async isOperatorSiteActive(): Promise<TheOptionOperatorSiteStatus> {
     try {
-      // Test with a simple API call to check if Alpha Vantage is responding
+      // Test with Exchange Rates API (from official docs: function=CURRENCY_EXCHANGE_RATE)
       const testUrl = `${API_BASE_URL}?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey=${this.apiKey}`;
       await this.makeRequest<AlphaVantageRealtimeResponse>(testUrl);
       
@@ -244,7 +244,7 @@ class TheOptionAPIService {
     }
   }
 
-  // Get real-time quotes using Alpha Vantage
+  // Get real-time quotes using Alpha Vantage Exchange Rates API
   async getQuotes(assets?: string[]): Promise<TheOptionQuote[]> {
     try {
       const quotes: TheOptionQuote[] = [];
@@ -254,6 +254,7 @@ class TheOptionAPIService {
         const pair = ASSET_MAPPING[pairKey as TradingPair];
         if (!pair) continue;
         
+        // Using official Exchange Rates API from docs
         const url = `${API_BASE_URL}?function=CURRENCY_EXCHANGE_RATE&from_currency=${pair.from}&to_currency=${pair.to}&apikey=${this.apiKey}`;
         
         try {
@@ -284,7 +285,7 @@ class TheOptionAPIService {
     }
   }
 
-  // Get chart data using Alpha Vantage FX APIs
+  // Get chart data using Alpha Vantage FX APIs (from official docs)
   async getChartData(
     asset: string,
     timeframe: string,
@@ -297,19 +298,27 @@ class TheOptionAPIService {
       let url: string;
       let functionName: string;
       
+      // Use official API functions from docs
       if (timeframe === 'daily') {
         functionName = 'FX_DAILY';
         url = `${API_BASE_URL}?function=${functionName}&from_symbol=${fromCurrency}&to_symbol=${toCurrency}&apikey=${this.apiKey}`;
+      } else if (timeframe === 'weekly') {
+        functionName = 'FX_WEEKLY';
+        url = `${API_BASE_URL}?function=${functionName}&from_symbol=${fromCurrency}&to_symbol=${toCurrency}&apikey=${this.apiKey}`;
+      } else if (timeframe === 'monthly') {
+        functionName = 'FX_MONTHLY';
+        url = `${API_BASE_URL}?function=${functionName}&from_symbol=${fromCurrency}&to_symbol=${toCurrency}&apikey=${this.apiKey}`;
       } else {
+        // For intraday data, use FX_INTRADAY (Premium feature according to docs)
         functionName = 'FX_INTRADAY';
         url = `${API_BASE_URL}?function=${functionName}&from_symbol=${fromCurrency}&to_symbol=${toCurrency}&interval=${timeframe}&apikey=${this.apiKey}`;
       }
       
-      const response = await this.makeRequest<AlphaVantageIntradayResponse>(url);
+      const response = await this.makeRequest<AlphaVantageFXResponse>(url);
       
-      // Find the time series data key
+      // Find the time series data key (from official response structure)
       const timeSeriesKey = Object.keys(response).find(key => 
-        key.startsWith('Time Series FX') || key.startsWith('Time Series')
+        key.startsWith('Time Series FX')
       );
       
       if (!timeSeriesKey || !response[timeSeriesKey]) {
@@ -319,7 +328,7 @@ class TheOptionAPIService {
       const timeSeriesData = response[timeSeriesKey];
       const chartPoints: TheOptionChartPoint[] = [];
       
-      // Convert Alpha Vantage data to our format
+      // Convert Alpha Vantage data to our format (using official field names from docs)
       const timestamps = Object.keys(timeSeriesData)
         .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
         .slice(0, count);
