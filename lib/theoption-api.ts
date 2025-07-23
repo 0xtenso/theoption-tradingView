@@ -85,6 +85,22 @@ interface AlphaVantageIntradayResponse {
   [key: string]: any; // Time series data
 }
 
+// Alpha Vantage Global Quote Response
+interface AlphaVantageGlobalQuoteResponse {
+  "Global Quote": {
+    "01. symbol": string;
+    "02. open": string;
+    "03. high": string;
+    "04. low": string;
+    "05. price": string;
+    "06. volume": string;
+    "07. latest trading day": string;
+    "08. previous close": string;
+    "09. change": string;
+    "10. change percent": string;
+  };
+}
+
 // Asset mapping for Alpha Vantage
 const ASSET_MAPPING: Record<TradingPair, { from: string; to: string }> = {
   'USDJPY': { from: 'USD', to: 'JPY' },
@@ -114,14 +130,14 @@ class TheOptionAPIService {
   private apiKey: string;
   private sessionToken?: string;
   private lastRequestTime = 0;
-  private requestDelay = 12000; // Alpha Vantage free tier: 5 requests per minute
+  private requestDelay = 3500; // Alpha Vantage free tier: 25 requests per day, ~3.5 seconds between requests to be safe
   private sessionID = "DEMO_SESSION"; // Demo session ID
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey || FREE_API_KEY;
   }
 
-  // Rate limiting helper - Alpha Vantage free tier is 5 requests per minute
+  // Rate limiting helper - Alpha Vantage free tier is 25 requests per day
   private async rateLimit(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
@@ -146,6 +162,7 @@ class TheOptionAPIService {
     };
 
     const config: RequestInit = {
+      method: 'GET', // Alpha Vantage uses GET requests
       ...options,
       headers: {
         ...defaultHeaders,
@@ -171,6 +188,10 @@ class TheOptionAPIService {
         throw new Error(`Alpha Vantage API Note: ${data['Note']}`);
       }
 
+      if (data['Information']) {
+        throw new Error(`Alpha Vantage API Info: ${data['Information']}`);
+      }
+
       return data as T;
     } catch (error) {
       console.error(`API Error (${url}):`, error);
@@ -178,7 +199,7 @@ class TheOptionAPIService {
     }
   }
 
-  // Check if operator site is active (simulated for Alpha Vantage)
+  // Check if operator site is active (test with a simple API call)
   async isOperatorSiteActive(): Promise<TheOptionOperatorSiteStatus> {
     try {
       // Test with a simple API call to check if Alpha Vantage is responding
@@ -239,8 +260,8 @@ class TheOptionAPIService {
           const response = await this.makeRequest<AlphaVantageRealtimeResponse>(url);
           const rate = response["Realtime Currency Exchange Rate"];
           
-          const bid = parseFloat(rate["8. Bid Price"]);
-          const ask = parseFloat(rate["9. Ask Price"]);
+          const bid = rate["8. Bid Price"] ? parseFloat(rate["8. Bid Price"]) : null;
+          const ask = rate["9. Ask Price"] ? parseFloat(rate["9. Ask Price"]) : null;
           const currentRate = parseFloat(rate["5. Exchange Rate"]);
           
           quotes.push({
@@ -263,7 +284,7 @@ class TheOptionAPIService {
     }
   }
 
-  // Get chart data using Alpha Vantage FX Intraday
+  // Get chart data using Alpha Vantage FX APIs
   async getChartData(
     asset: string,
     timeframe: string,
