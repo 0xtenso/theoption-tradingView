@@ -3,7 +3,7 @@ import { createFallbackResponse, shouldUseFallback } from './fallback-data';
 
 // Exchange Rate API Configuration
 const API_BASE_URL = 'https://v6.exchangerate-api.com/v6';
-const API_KEY = 'f2971a33515852bd9969ccd9/latest'; // From the provided URL
+const API_KEY = 'd90d9a7dc56649598a43200d/latest'; // From the provided URL
 
 // Exchange Rate API Response Types
 interface ExchangeRateAPIResponse {

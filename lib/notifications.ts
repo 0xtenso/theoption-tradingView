@@ -12,13 +12,13 @@ const vibrate = (pattern: number[]) => {
 
 // jp.theoption.com プラットフォームのURL
 const THEOPTION_URLS = {
-  web: 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD',
-  mobile: 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD',
+  web: 'https://v6.exchangerate-api.com/v6/d90d9a7dc56649598a43200d/latest/USD',
+  mobile: 'https://v6.exchangerate-api.com/v6/d90d9a7dc56649598a43200d/latest/USD',
   trade: {
-    web: 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD',
-    mobile: 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD',
+    web: 'https://v6.exchangerate-api.com/v6/d90d9a7dc56649598a43200d/latest/USD',
+    mobile: 'https://v6.exchangerate-api.com/v6/d90d9a7dc56649598a43200d/latest/USD',
   },
-  direct: 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD', // 直接取引画面
+  direct: 'https://v6.exchangerate-api.com/v6/d90d9a7dc56649598a43200d/latest/USD', // 直接取引画面
 };
 
 let notificationPermission: string = 'default'; // Use string instead of NotificationPermission for SSR
