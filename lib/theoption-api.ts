@@ -1,4 +1,5 @@
 import { OHLC, MarketData, TradingPair, TimeFrame } from '@/types/trading';
+import { createFallbackResponse, shouldUseFallback } from './fallback-data';
 
 // Exchange Rate API Configuration
 const API_BASE_URL = 'https://v6.exchangerate-api.com/v6';
@@ -90,30 +91,55 @@ class TheOptionAPIService {
   private apiKey: string;
   private sessionToken?: string;
   private lastRequestTime = 0;
-  private requestDelay = 3000; // Exchange Rate API - Update every 3 seconds
+  private requestDelay = 60000; // Exchange Rate API - Update every 60 seconds (1 minute) to avoid rate limits
   private sessionID = "DEMO_SESSION"; // Demo session ID
+  private cache: Map<string, { data: any; timestamp: number }> = new Map();
+  private cacheTimeout = 300000; // Cache for 5 minutes
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey || API_KEY;
   }
 
-  // Rate limiting helper
+  // Enhanced rate limiting with exponential backoff
   private async rateLimit(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
     if (timeSinceLastRequest < this.requestDelay) {
+      const waitTime = this.requestDelay - timeSinceLastRequest;
+      console.log(`Rate limiting: waiting ${waitTime}ms before next API call`);
       await new Promise(resolve =>
-        setTimeout(resolve, this.requestDelay - timeSinceLastRequest)
+        setTimeout(resolve, waitTime)
       );
     }
     this.lastRequestTime = Date.now();
   }
 
-  // Generic API request method
+  // Cache management
+  private getCachedData(key: string): any | null {
+    const cached = this.cache.get(key);
+    if (cached && (Date.now() - cached.timestamp) < this.cacheTimeout) {
+      console.log(`Using cached data for ${key}`);
+      return cached.data;
+    }
+    return null;
+  }
+
+  private setCachedData(key: string, data: any): void {
+    this.cache.set(key, { data, timestamp: Date.now() });
+  }
+
+  // Generic API request method with enhanced error handling
   private async makeRequest<T>(
     url: string,
     options: RequestInit = {}
   ): Promise<T> {
+    // Check cache first
+    const cacheKey = url;
+    const cachedData = this.getCachedData(cacheKey);
+    if (cachedData) {
+      return cachedData as T;
+    }
+
     await this.rateLimit();
 
     const defaultHeaders = {
@@ -130,25 +156,55 @@ class TheOptionAPIService {
       },
     };
 
-    try {
-      const response = await fetch(url, config);
+    let retries = 3;
+    let delay = 5000; // Start with 5 second delay
 
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    while (retries > 0) {
+      try {
+        const response = await fetch(url, config);
+
+        if (response.status === 429) {
+          console.warn(`Rate limit hit (429). Retrying in ${delay}ms. Retries left: ${retries - 1}`);
+          
+          if (retries > 1) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2; // Exponential backoff
+            retries--;
+            continue;
+          } else {
+            throw new Error('Rate limit exceeded. Please wait before making more requests.');
+          }
+        }
+
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // Check for Exchange Rate API errors
+        if (data.result && data.result !== 'success') {
+          throw new Error(`Exchange Rate API Error: ${data.result}`);
+        }
+
+        // Cache successful response
+        this.setCachedData(cacheKey, data);
+        return data as T;
+
+      } catch (error) {
+        if (retries === 1) {
+          console.error(`API Error (${url}):`, error);
+          throw error;
+        }
+        
+        console.warn(`Request failed, retrying in ${delay}ms. Error:`, error);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
+        retries--;
       }
-
-      const data = await response.json();
-      
-      // Check for Exchange Rate API errors
-      if (data.result && data.result !== 'success') {
-        throw new Error(`Exchange Rate API Error: ${data.result}`);
-      }
-
-      return data as T;
-    } catch (error) {
-      console.error(`API Error (${url}):`, error);
-      throw error;
     }
+
+    throw new Error('Max retries exceeded');
   }
 
   // Check if Exchange Rate API is active

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windows Notification Test - Trading Signals</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #fff;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            margin: 10px 5px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            display: inline-block;
+            min-width: 200px;
+        }
+        button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .success {
+            background: rgba(76, 175, 80, 0.3);
+            border-left: 4px solid #4CAF50;
+        }
+        .error {
+            background: rgba(244, 67, 54, 0.3);
+            border-left: 4px solid #f44336;
+        }
+        .warning {
+            background: rgba(255, 193, 7, 0.3);
+            border-left: 4px solid #FFC107;
+        }
+        .step {
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+        .center {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Windows Notification Test</h1>
+        
+        <div id="status" class="status">
+            <strong>Status:</strong> <span id="statusText">Checking notification support...</span>
+        </div>
+
+        <div class="center">
+            <button id="requestPermission" onclick="requestNotificationPermission()">
+                📝 Request Notification Permission
+            </button>
+            
+            <button id="testBasic" onclick="testBasicNotification()" disabled>
+                🎯 Test Basic Notification
+            </button>
+            
+            <button id="testTrading" onclick="testTradingSignal()" disabled>
+                📊 Test Trading Signal
+            </button>
+            
+            <button id="testSound" onclick="testNotificationWithSound()" disabled>
+                🔊 Test Notification + Sound
+            </button>
+        </div>
+
+        <div class="step">
+            <h3>📋 Quick Setup Steps:</h3>
+            <ol>
+                <li><strong>Click "Request Permission"</strong> and allow notifications</li>
+                <li><strong>Test each notification type</strong> using the buttons above</li>
+                <li><strong>Check Windows Settings</strong> if notifications don't appear</li>
+                <li><strong>Go back to trading app</strong> when notifications work</li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>⚡ Windows Settings Check:</h3>
+            <p><strong>Windows Key + I</strong> → System → Notifications & actions</p>
+            <p>Ensure "<strong>Get notifications from apps and other senders</strong>" is ON</p>
+            <p>Ensure your browser notifications are enabled</p>
+        </div>
+
+        <div class="step">
+            <h3>🔧 Troubleshooting:</h3>
+            <p><strong>No notifications?</strong> Check Focus Assist settings (Windows Key + U)</p>
+            <p><strong>Still not working?</strong> Try a different browser</p>
+            <p><strong>Notifications appear but no sound?</strong> Check Windows sound settings</p>
+        </div>
+    </div>
+
+    <script>
+        let audioContext;
+        
+        function checkNotificationSupport() {
+            const statusEl = document.getElementById('statusText');
+            const statusDiv = document.getElementById('status');
+            
+            if (!('Notification' in window)) {
+                statusEl.textContent = 'Notifications not supported in this browser';
+                statusDiv.className = 'status error';
+                return false;
+            }
+            
+            const permission = Notification.permission;
+            if (permission === 'granted') {
+                statusEl.textContent = 'Notifications are enabled and ready!';
+                statusDiv.className = 'status success';
+                enableTestButtons();
+                return true;
+            } else if (permission === 'denied') {
+                statusEl.textContent = 'Notifications are blocked. Check browser settings.';
+                statusDiv.className = 'status error';
+                return false;
+            } else {
+                statusEl.textContent = 'Notification permission not requested yet';
+                statusDiv.className = 'status warning';
+                return false;
+            }
+        }
+        
+        function enableTestButtons() {
+            document.getElementById('testBasic').disabled = false;
+            document.getElementById('testTrading').disabled = false;
+            document.getElementById('testSound').disabled = false;
+            document.getElementById('requestPermission').disabled = true;
+        }
+        
+        async function requestNotificationPermission() {
+            try {
+                const permission = await Notification.requestPermission();
+                checkNotificationSupport();
+                
+                if (permission === 'granted') {
+                    testBasicNotification();
+                }
+            } catch (error) {
+                console.error('Error requesting permission:', error);
+                document.getElementById('statusText').textContent = 'Error requesting permission: ' + error.message;
+                document.getElementById('status').className = 'status error';
+            }
+        }
+        
+        function testBasicNotification() {
+            if (Notification.permission !== 'granted') {
+                alert('Please enable notifications first!');
+                return;
+            }
+            
+            const notification = new Notification('✅ Test Successful!', {
+                body: 'Windows notifications are working correctly for your trading app.',
+                icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎯</text></svg>',
+                tag: 'test-notification'
+            });
+            
+            notification.onclick = function() {
+                alert('Notification clicked! This will open jp.theoption.com in the real app.');
+                notification.close();
+            };
+            
+            setTimeout(() => {
+                notification.close();
+            }, 5000);
+        }
+        
+        function testTradingSignal() {
+            if (Notification.permission !== 'granted') {
+                alert('Please enable notifications first!');
+                return;
+            }
+            
+            const pairs = ['USDJPY', 'EURUSD', 'GBPJPY'];
+            const directions = ['HIGH', 'LOW'];
+            const pair = pairs[Math.floor(Math.random() * pairs.length)];
+            const direction = directions[Math.floor(Math.random() * directions.length)];
+            const confidence = Math.floor(Math.random() * 30) + 70; // 70-100%
+            
+            const notification = new Notification(`${pair} ${direction} シグナル`, {
+                body: `信頼度: ${confidence}% | エントリー価格: ${(Math.random() * 50 + 100).toFixed(3)}
+手法: 順方向×逆装着の反転ゾーン一点突破
+1分取引推奨`,
+                icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📊</text></svg>',
+                tag: 'trading-signal',
+                requireInteraction: true
+            });
+            
+            notification.onclick = function() {
+                alert('In the real app, this would open jp.theoption.com with pre-filled trade parameters!');
+                notification.close();
+            };
+        }
+        
+        function playNotificationSound() {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (error) {
+                console.log('Audio not supported or blocked');
+            }
+        }
+        
+        function testNotificationWithSound() {
+            if (Notification.permission !== 'granted') {
+                alert('Please enable notifications first!');
+                return;
+            }
+            
+            playNotificationSound();
+            
+            const notification = new Notification('🔊 Sound Test Complete!', {
+                body: 'You should hear a notification sound along with this message.',
+                icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🔊</text></svg>',
+                tag: 'sound-test'
+            });
+            
+            // Vibrate on mobile devices
+            if ('vibrate' in navigator) {
+                navigator.vibrate([200, 100, 200]);
+            }
+            
+            setTimeout(() => {
+                notification.close();
+            }, 3000);
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', function() {
+            checkNotificationSupport();
+        });
+    </script>
+</body>
+</html> 

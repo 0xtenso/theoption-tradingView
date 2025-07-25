@@ -51,10 +51,10 @@ export async function initializeNotifications(): Promise<boolean> {
 function generateTheOptionLink(symbol: string, direction: SignalDirection): string {
   try {
     // 新しい取引画面URLを返す
-    return 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD';
+    return 'https://jp.theoption.com/trading';
   } catch (error) {
     console.error('jp.theoption.comリンク生成エラー:', error);
-    return 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD';
+    return 'https://jp.theoption.com/trading';
   }
 }
 

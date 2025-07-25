@@ -79,7 +79,7 @@ export const defaultCurrencyPairs = [
 // 初期設定
 const DEFAULT_SETTINGS: TradingSettings = {
   theoption: {
-    apiKey: 'f2971a33515852bd9969ccd9/latest',
+    apiKey: 'f8cdd520ec3643cbafe8774c/latest',
     baseUrl: 'https://v6.exchangerate-api.com/v6',
     demoMode: true,
   },
@@ -423,10 +423,10 @@ export const useTradingStore = create<TradingStore>((set, get) => {
       set({ isBinaryMode: enabled });
       
       if (enabled) {
-        console.log('🎯 バイナリーオプションモードを有効にしました');
-        console.log('📊 リアルタイムAPI使用: TheOption Platform');
-        console.log('⏰ 推奨時間: 東京 9-11時、ヨーロッパ 15-17時');
-        console.log('💱 推奨通貨ペア: USD/JPY, EUR/USD, GBP/JPY');
+        console.log('バイナリーオプションモードを有効にしました');
+        console.log('リアルタイムAPI使用: TheOption Platform');
+        console.log('推奨時間: 東京 9-11時、ヨーロッパ 15-17時');
+        console.log('推奨通貨ペア: USD/JPY, EUR/USD, GBP/JPY');
       }
     },
 
@@ -495,34 +495,35 @@ export const useTradingStore = create<TradingStore>((set, get) => {
     startSignalGeneration: () => {
       const { isBinaryMode } = get();
       
-      // Market data periodic update (every 1 second for real-time)
+      // Market data periodic update (every 2 minutes to respect API limits)
       if (marketDataInterval) clearInterval(marketDataInterval);
       marketDataInterval = setInterval(() => {
         get().updateMarketData();
-      }, 1000); // 1秒ごとにリアルタイム更新
+      }, 120000); // 2分ごとに更新 (API制限を考慮)
 
-      // Platform status check (every 5 minutes)
+      // Platform status check (every 10 minutes)
       if (statusCheckInterval) clearInterval(statusCheckInterval);
       statusCheckInterval = setInterval(() => {
         get().checkPlatformStatus();
-      }, 300000); // 5 minutes
+      }, 600000); // 10 minutes
 
       // Signal generation periodic execution
       if (signalGenerationInterval) clearInterval(signalGenerationInterval);
       
       if (isBinaryMode) {
-        // Binary mode: Check every minute (high precision)
+        // Binary mode: Check every 3 minutes (reduced from 1 minute)
         signalGenerationInterval = setInterval(() => {
           get().generateBinarySignal();
-        }, 60000); // 1 minute
+        }, 180000); // 3 minutes
       } else {
-        // Normal mode: Every 3 minutes
+        // Normal mode: Every 5 minutes
         signalGenerationInterval = setInterval(() => {
           get().generateSignal();
-        }, 180000); // 3 minutes
+        }, 300000); // 5 minutes
       }
 
       console.log(`🟢 リアルタイム自動シグナル生成を開始 (${isBinaryMode ? 'バイナリー' : '通常'}モード)`);
+      console.log(`📊 市場データ更新間隔: 2分, シグナル生成間隔: ${isBinaryMode ? '3分' : '5分'}`);
     },
 
     stopSignalGeneration: () => {
