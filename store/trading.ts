@@ -79,7 +79,7 @@ export const defaultCurrencyPairs = [
 // 初期設定
 const DEFAULT_SETTINGS: TradingSettings = {
   theoption: {
-    apiKey: 'f8cdd520ec3643cbafe8774c/latest',
+    apiKey: 'd90d9a7dc56649598a43200d/latest',
     baseUrl: 'https://v6.exchangerate-api.com/v6',
     demoMode: true,
   },
