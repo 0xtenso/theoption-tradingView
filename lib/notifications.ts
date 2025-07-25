@@ -12,13 +12,13 @@ const vibrate = (pattern: number[]) => {
 
 // jp.theoption.com プラットフォームのURL
 const THEOPTION_URLS = {
-  web: 'https://jp.theoption.com/trading',
-  mobile: 'https://jp.theoption.com/trading',
+  web: 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD',
+  mobile: 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD',
   trade: {
-    web: 'https://jp.theoption.com/trading',
-    mobile: 'https://jp.theoption.com/trading',
+    web: 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD',
+    mobile: 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD',
   },
-  direct: 'https://jp.theoption.com/trading', // 直接取引画面
+  direct: 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD', // 直接取引画面
 };
 
 let notificationPermission: string = 'default'; // Use string instead of NotificationPermission for SSR
@@ -51,10 +51,10 @@ export async function initializeNotifications(): Promise<boolean> {
 function generateTheOptionLink(symbol: string, direction: SignalDirection): string {
   try {
     // 新しい取引画面URLを返す
-    return 'https://jp.theoption.com/trading';
+    return 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD';
   } catch (error) {
     console.error('jp.theoption.comリンク生成エラー:', error);
-    return 'https://jp.theoption.com/trading';
+    return 'https://v6.exchangerate-api.com/v6/f2971a33515852bd9969ccd9/latest/USD';
   }
 }
 
@@ -75,10 +75,10 @@ export function sendSignalNotification(signal: Signal): void {
     // jp.theoption.comへの直接リンク生成
     const tradeUrl = generateTheOptionLink(signal.symbol, signal.direction);
     
-    const title = `🎯 ${signal.symbol} ${signal.direction} シグナル`;
+    const title = `${signal.symbol} ${signal.direction} シグナル`;
     const body = `信頼度: ${signal.confidence}% | エントリー価格: ${signal.entryPrice.toFixed(3)}
-📊 手法: 順方向×逆装着の反転ゾーン一点突破
-⏰ 1分取引推奨`;
+手法: 順方向×逆装着の反転ゾーン一点突破
+1分取引推奨`;
     
     const notification = new Notification(title, {
       body,
@@ -131,7 +131,7 @@ export function showSignalInAppNotification(signal: Signal): void {
   }
 
   try {
-    console.log(`📢 ${signal.symbol} ${signal.direction} シグナル (信頼度: ${signal.confidence}%)`);
+    console.log(`${signal.symbol} ${signal.direction} シグナル (信頼度: ${signal.confidence}%)`);
     
     // カスタムイベントを発火（UI側でキャッチ可能）
     if (isBrowserEnvironment() && window.dispatchEvent) {
@@ -366,8 +366,8 @@ export function createRichNotification(signal: Signal): NotificationOptions {
   return {
     body: `${direction} ${signal.symbol} ${signal.direction}
 ${confidence} 信頼度: ${signal.confidence}%
-💰 価格: ${formatPrice(signal.entryPrice, signal.symbol)}
-⏰ ${formatTime(signal.timestamp)}`,
+価格: ${formatPrice(signal.entryPrice, signal.symbol)}
+${formatTime(signal.timestamp)}`,
     icon: '/icons/signal-icon.png',
     tag: `signal-${signal.symbol}-${signal.timeframe}`,
   };

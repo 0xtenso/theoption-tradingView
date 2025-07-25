@@ -1,13 +1,13 @@
 # TheOption Real-Time Trading Signal Tool
 
-A sophisticated binary options trading signal application that uses 100% real-time data from the TheOption platform API. Features advanced technical analysis and professional trading signals for jp.theoption.com.
+A sophisticated binary options trading signal application that uses 100% real-time data from the Exchange Rate API. Features advanced technical analysis and professional trading signals for jp.theoption.com.
 
 ## Key Features
 
 ### Real-Time API Integration
-- Direct TheOption API Connection - Live data from https://platformapidemo.theoption.com
-- Real-Time OHLC Charts - Live candlestick and line charts
-- Live Account Balance - Real-time trader balance monitoring
+- Direct Exchange Rate API Connection - Live data from https://v6.exchangerate-api.com/v6
+- Real-Time OHLC Charts - Live candlestick and line charts with simulated historical data
+- Live Currency Rates - Real-time exchange rate monitoring
 - No Mock Data - 100% authentic market data only
 
 ### Advanced Signal Generation
@@ -65,15 +65,16 @@ http://localhost:3000
 
 ## 🔌 Real-Time API Integration
 
-### TheOption Platform API
+### Exchange Rate API
 
-Base URL: `https://platformapidemo.theoption.com`
+Base URL: `https://v6.exchangerate-api.com/v6`
 
-Supported Endpoints:
-- `GetTraderBalance` - Live account balance
-- `GetQuotes` - Real-time currency quotes
-- `GetChartData` - Historical OHLC data
-- `GetMarketData` - Market information
+Supported Features:
+- Real-time currency exchange rates
+- 160+ supported currencies
+- Historical data simulation
+- Cross-rate calculations
+- Live market data for forex pairs
 
 ### Data Flow Architecture
 

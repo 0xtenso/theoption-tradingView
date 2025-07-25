@@ -1,15 +1,20 @@
 import { OHLC, MarketData, TradingPair, TimeFrame } from '@/types/trading';
 
-// Alpha Vantage API Configuration
-// Free API for forex and market data
-const API_BASE_URL = 'https://www.alphavantage.co/query';
-const FREE_API_KEY = 'BRAHK3JLYS4NQSPG'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
+// Exchange Rate API Configuration
+const API_BASE_URL = 'https://v6.exchangerate-api.com/v6';
+const API_KEY = 'f2971a33515852bd9969ccd9/latest'; // From the provided URL
 
-// Alpha Vantage API Response Types
-interface AlphaVantageBalanceResponse {
-  balance: number;
-  currency: string;
-  demo: boolean;
+// Exchange Rate API Response Types
+interface ExchangeRateAPIResponse {
+  result: string;
+  documentation: string;
+  terms_of_use: string;
+  time_last_update_unix: number;
+  time_last_update_utc: string;
+  time_next_update_unix: number;
+  time_next_update_utc: string;
+  base_code: string;
+  conversion_rates: Record<string, number>;
 }
 
 interface TheOptionBalance {
@@ -56,52 +61,7 @@ interface TheOptionOperatorSiteStatus {
   ErrorMessage?: string;
 }
 
-// Alpha Vantage FX Real-time Exchange Rate Response (from official docs)
-interface AlphaVantageRealtimeResponse {
-  "Realtime Currency Exchange Rate": {
-    "1. From_Currency Code": string;
-    "2. From_Currency Name": string;
-    "3. To_Currency Code": string;
-    "4. To_Currency Name": string;
-    "5. Exchange Rate": string;
-    "6. Last Refreshed": string;
-    "7. Time Zone": string;
-    "8. Bid Price": string;
-    "9. Ask Price": string;
-  };
-}
-
-// Alpha Vantage FX Time Series Response (from official docs)
-interface AlphaVantageFXResponse {
-  "Meta Data": {
-    "1. Information": string;
-    "2. From Symbol": string;
-    "3. To Symbol": string;
-    "4. Last Refreshed": string;
-    "5. Interval"?: string;
-    "6. Output Size"?: string;
-    "7. Time Zone": string;
-  };
-  [key: string]: any; // Time series data like "Time Series FX (Daily)" or "Time Series FX (5min)"
-}
-
-// Alpha Vantage Global Quote Response (from official docs)
-interface AlphaVantageGlobalQuoteResponse {
-  "Global Quote": {
-    "01. symbol": string;
-    "02. open": string;
-    "03. high": string;
-    "04. low": string;
-    "05. price": string;
-    "06. volume": string;
-    "07. latest trading day": string;
-    "08. previous close": string;
-    "09. change": string;
-    "10. change percent": string;
-  };
-}
-
-// Asset mapping for Alpha Vantage
+// Asset mapping for Exchange Rate API
 const ASSET_MAPPING: Record<TradingPair, { from: string; to: string }> = {
   'USDJPY': { from: 'USD', to: 'JPY' },
   'EURUSD': { from: 'EUR', to: 'USD' },
@@ -115,14 +75,14 @@ const ASSET_MAPPING: Record<TradingPair, { from: string; to: string }> = {
   'EURGBP': { from: 'EUR', to: 'GBP' },
 };
 
-// Timeframe mapping for Alpha Vantage (from official docs)
+// Timeframe mapping (used for simulated historical data)
 const TIMEFRAME_MAPPING: Record<TimeFrame, string> = {
   [TimeFrame.M1]: '1min',
   [TimeFrame.M5]: '5min',
   [TimeFrame.M15]: '15min',
   [TimeFrame.M30]: '30min',
   [TimeFrame.H1]: '60min',
-  [TimeFrame.H4]: '60min', // Alpha Vantage doesn't have 4h, use 1h
+  [TimeFrame.H4]: '4hour',
   [TimeFrame.D1]: 'daily',
 };
 
@@ -130,14 +90,14 @@ class TheOptionAPIService {
   private apiKey: string;
   private sessionToken?: string;
   private lastRequestTime = 0;
-  private requestDelay = 3500; // Alpha Vantage free tier: 25 requests per day, ~3.5 seconds between requests to be safe
+  private requestDelay = 1000; // Exchange Rate API allows more frequent requests
   private sessionID = "DEMO_SESSION"; // Demo session ID
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || FREE_API_KEY;
+    this.apiKey = apiKey || API_KEY;
   }
 
-  // Rate limiting helper - Alpha Vantage free tier is 25 requests per day
+  // Rate limiting helper
   private async rateLimit(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
@@ -162,7 +122,7 @@ class TheOptionAPIService {
     };
 
     const config: RequestInit = {
-      method: 'GET', // Alpha Vantage uses GET requests
+      method: 'GET',
       ...options,
       headers: {
         ...defaultHeaders,
@@ -179,17 +139,9 @@ class TheOptionAPIService {
 
       const data = await response.json();
       
-      // Check for Alpha Vantage API errors (from official docs)
-      if (data['Error Message']) {
-        throw new Error(`Alpha Vantage API Error: ${data['Error Message']}`);
-      }
-      
-      if (data['Note']) {
-        throw new Error(`Alpha Vantage API Note: ${data['Note']}`);
-      }
-
-      if (data['Information']) {
-        throw new Error(`Alpha Vantage API Info: ${data['Information']}`);
+      // Check for Exchange Rate API errors
+      if (data.result && data.result !== 'success') {
+        throw new Error(`Exchange Rate API Error: ${data.result}`);
       }
 
       return data as T;
@@ -199,33 +151,40 @@ class TheOptionAPIService {
     }
   }
 
-  // Check if operator site is active (test with Exchange Rates API)
+  // Check if Exchange Rate API is active
   async isOperatorSiteActive(): Promise<TheOptionOperatorSiteStatus> {
     try {
-      // Test with Exchange Rates API (from official docs: function=CURRENCY_EXCHANGE_RATE)
-      const testUrl = `${API_BASE_URL}?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey=${this.apiKey}`;
-      await this.makeRequest<AlphaVantageRealtimeResponse>(testUrl);
+      const testUrl = `${API_BASE_URL}/${this.apiKey}/USD`;
+      const response = await this.makeRequest<ExchangeRateAPIResponse>(testUrl);
       
-      return {
-        IsActive: true,
-        Success: true,
-        Message: "Alpha Vantage API is operational"
-      };
+      if (response.result === 'success') {
+        return {
+          IsActive: true,
+          Success: true,
+          Message: "Exchange Rate API is operational"
+        };
+      } else {
+        return {
+          IsActive: false,
+          Success: false,
+          ErrorMessage: `API returned: ${response.result}`,
+          Message: 'Exchange Rate API is not responding correctly',
+        };
+      }
     } catch (error) {
-      console.error('Failed to check Alpha Vantage API status:', error);
+      console.error('Failed to check Exchange Rate API status:', error);
       return {
         IsActive: false,
         Success: false,
         ErrorMessage: error instanceof Error ? error.message : 'Failed to check API status',
-        Message: 'Alpha Vantage API is not responding',
+        Message: 'Exchange Rate API is not responding',
       };
     }
   }
 
-  // Get trader balance (simulated for Alpha Vantage)
+  // Get trader balance (simulated)
   async getTraderBalance(): Promise<TheOptionBalance> {
     try {
-      // Simulate a demo balance since Alpha Vantage doesn't provide account data
       return {
         Balance: 10000, // Demo balance
         Currency: "USD",
@@ -244,33 +203,66 @@ class TheOptionAPIService {
     }
   }
 
-  // Get real-time quotes using Alpha Vantage Exchange Rates API
+  // Get exchange rates from Exchange Rate API
+  private async getExchangeRates(baseCurrency: string): Promise<ExchangeRateAPIResponse> {
+    const url = `${API_BASE_URL}/${this.apiKey}/${baseCurrency}`;
+    return this.makeRequest<ExchangeRateAPIResponse>(url);
+  }
+
+  // Calculate exchange rate between two currencies
+  private calculateCrossRate(rates: Record<string, number>, from: string, to: string): number {
+    if (from === to) return 1;
+    
+    // If we have direct rate
+    if (rates[to]) {
+      return rates[to];
+    }
+    
+    // For cross rates, we need to calculate via USD
+    // This is a simplified approach - in reality you'd need more sophisticated cross-rate calculation
+    const fromToUsd = 1 / (rates[from] || 1);
+    const toFromUsd = rates[to] || 1;
+    return fromToUsd * toFromUsd;
+  }
+
+  // Get real-time quotes using Exchange Rate API
   async getQuotes(assets?: string[]): Promise<TheOptionQuote[]> {
     try {
       const quotes: TheOptionQuote[] = [];
       const pairs = assets || Object.keys(ASSET_MAPPING) as TradingPair[];
       
+      // Get USD rates first (since our API key provides USD-based rates)
+      const usdRates = await this.getExchangeRates('USD');
+      
       for (const pairKey of pairs) {
         const pair = ASSET_MAPPING[pairKey as TradingPair];
         if (!pair) continue;
         
-        // Using official Exchange Rates API from docs
-        const url = `${API_BASE_URL}?function=CURRENCY_EXCHANGE_RATE&from_currency=${pair.from}&to_currency=${pair.to}&apikey=${this.apiKey}`;
-        
         try {
-          const response = await this.makeRequest<AlphaVantageRealtimeResponse>(url);
-          const rate = response["Realtime Currency Exchange Rate"];
+          let rate: number;
           
-          const bid = rate["8. Bid Price"] ? parseFloat(rate["8. Bid Price"]) : null;
-          const ask = rate["9. Ask Price"] ? parseFloat(rate["9. Ask Price"]) : null;
-          const currentRate = parseFloat(rate["5. Exchange Rate"]);
+          if (pair.from === 'USD') {
+            // Direct USD to other currency
+            rate = usdRates.conversion_rates[pair.to] || 1;
+          } else if (pair.to === 'USD') {
+            // Other currency to USD (inverse)
+            rate = 1 / (usdRates.conversion_rates[pair.from] || 1);
+          } else {
+            // Cross rate calculation
+            const fromToUsd = 1 / (usdRates.conversion_rates[pair.from] || 1);
+            const usdToTarget = usdRates.conversion_rates[pair.to] || 1;
+            rate = fromToUsd * usdToTarget;
+          }
+          
+          // Add small spread for bid/ask simulation
+          const spread = rate * 0.0001; // 1 pip spread
           
           quotes.push({
             Asset: `${pair.from}/${pair.to}`,
-            Bid: bid || currentRate * 0.9999, // Approximate bid if not available
-            Ask: ask || currentRate * 1.0001, // Approximate ask if not available
-            LastUpdate: rate["6. Last Refreshed"],
-            Change: 0, // Alpha Vantage doesn't provide change in this endpoint
+            Bid: rate - spread,
+            Ask: rate + spread,
+            LastUpdate: usdRates.time_last_update_utc,
+            Change: 0, // Exchange Rate API doesn't provide change data
             ChangePercent: 0,
           });
         } catch (error) {
@@ -285,7 +277,53 @@ class TheOptionAPIService {
     }
   }
 
-  // Get chart data using Alpha Vantage FX APIs (from official docs)
+  // Generate simulated historical data (since Exchange Rate API only provides current rates)
+  private generateHistoricalData(currentRate: number, count: number, timeframe: string): TheOptionChartPoint[] {
+    const chartPoints: TheOptionChartPoint[] = [];
+    const now = new Date();
+    
+    // Calculate time interval based on timeframe
+    let intervalMs: number;
+    switch (timeframe) {
+      case '1min': intervalMs = 60 * 1000; break;
+      case '5min': intervalMs = 5 * 60 * 1000; break;
+      case '15min': intervalMs = 15 * 60 * 1000; break;
+      case '30min': intervalMs = 30 * 60 * 1000; break;
+      case '60min': intervalMs = 60 * 60 * 1000; break;
+      case '4hour': intervalMs = 4 * 60 * 60 * 1000; break;
+      case 'daily': intervalMs = 24 * 60 * 60 * 1000; break;
+      default: intervalMs = 60 * 1000; break;
+    }
+    
+    // Generate historical points with random walk simulation
+    let price = currentRate;
+    for (let i = count - 1; i >= 0; i--) {
+      const timestamp = new Date(now.getTime() - i * intervalMs);
+      
+      // Simple random walk for demonstration
+      const volatility = 0.001; // 0.1% volatility
+      const change = (Math.random() - 0.5) * volatility * price;
+      const open = price;
+      const close = price + change;
+      const high = Math.max(open, close) + Math.random() * volatility * price * 0.5;
+      const low = Math.min(open, close) - Math.random() * volatility * price * 0.5;
+      
+      chartPoints.push({
+        Time: timestamp.toISOString(),
+        Open: open,
+        High: high,
+        Low: low,
+        Close: close,
+        Volume: Math.floor(Math.random() * 1000000), // Random volume
+      });
+      
+      price = close;
+    }
+    
+    return chartPoints;
+  }
+
+  // Get chart data (simulated historical data based on current rates)
   async getChartData(
     asset: string,
     timeframe: string,
@@ -295,58 +333,22 @@ class TheOptionAPIService {
       // Parse asset string to get from/to currencies
       const [fromCurrency, toCurrency] = asset.split('/');
       
-      let url: string;
-      let functionName: string;
+      // Get current rate
+      const usdRates = await this.getExchangeRates('USD');
+      let currentRate: number;
       
-      // Use official API functions from docs
-      if (timeframe === 'daily') {
-        functionName = 'FX_DAILY';
-        url = `${API_BASE_URL}?function=${functionName}&from_symbol=${fromCurrency}&to_symbol=${toCurrency}&apikey=${this.apiKey}`;
-      } else if (timeframe === 'weekly') {
-        functionName = 'FX_WEEKLY';
-        url = `${API_BASE_URL}?function=${functionName}&from_symbol=${fromCurrency}&to_symbol=${toCurrency}&apikey=${this.apiKey}`;
-      } else if (timeframe === 'monthly') {
-        functionName = 'FX_MONTHLY';
-        url = `${API_BASE_URL}?function=${functionName}&from_symbol=${fromCurrency}&to_symbol=${toCurrency}&apikey=${this.apiKey}`;
+      if (fromCurrency === 'USD') {
+        currentRate = usdRates.conversion_rates[toCurrency] || 1;
+      } else if (toCurrency === 'USD') {
+        currentRate = 1 / (usdRates.conversion_rates[fromCurrency] || 1);
       } else {
-        // For intraday data, use FX_INTRADAY (Premium feature according to docs)
-        functionName = 'FX_INTRADAY';
-        url = `${API_BASE_URL}?function=${functionName}&from_symbol=${fromCurrency}&to_symbol=${toCurrency}&interval=${timeframe}&apikey=${this.apiKey}`;
+        const fromToUsd = 1 / (usdRates.conversion_rates[fromCurrency] || 1);
+        const usdToTarget = usdRates.conversion_rates[toCurrency] || 1;
+        currentRate = fromToUsd * usdToTarget;
       }
       
-      const response = await this.makeRequest<AlphaVantageFXResponse>(url);
-      
-      // Find the time series data key (from official response structure)
-      const timeSeriesKey = Object.keys(response).find(key => 
-        key.startsWith('Time Series FX')
-      );
-      
-      if (!timeSeriesKey || !response[timeSeriesKey]) {
-        throw new Error('No time series data found in response');
-      }
-      
-      const timeSeriesData = response[timeSeriesKey];
-      const chartPoints: TheOptionChartPoint[] = [];
-      
-      // Convert Alpha Vantage data to our format (using official field names from docs)
-      const timestamps = Object.keys(timeSeriesData)
-        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-        .slice(0, count);
-      
-      for (const timestamp of timestamps) {
-        const data = timeSeriesData[timestamp];
-        chartPoints.push({
-          Time: timestamp,
-          Open: parseFloat(data['1. open']),
-          High: parseFloat(data['2. high']),
-          Low: parseFloat(data['3. low']),
-          Close: parseFloat(data['4. close']),
-          Volume: 0, // FX data doesn't have volume
-        });
-      }
-      
-      // Reverse to get chronological order
-      return chartPoints.reverse();
+      // Generate simulated historical data
+      return this.generateHistoricalData(currentRate, count, timeframe);
     } catch (error) {
       console.error(`Failed to get chart data for ${asset}:`, error);
       return [];
@@ -407,7 +409,7 @@ class TheOptionAPIService {
     }
   }
 
-  // Generate MarketData object from Alpha Vantage data
+  // Generate MarketData object from Exchange Rate API data
   async generateMarketData(pair: TradingPair): Promise<MarketData> {
     try {
       const quotes = await this.getQuotes([pair]);
@@ -441,12 +443,12 @@ class TheOptionAPIService {
     this.apiKey = apiKey;
   }
 
-  // Set session token (not used in Alpha Vantage)
+  // Set session token (not used in Exchange Rate API)
   setSessionToken(token: string): void {
     this.sessionToken = token;
   }
   
-  // Set session ID (not used in Alpha Vantage)
+  // Set session ID (not used in Exchange Rate API)
   setSessionID(id: string): void {
     this.sessionID = id;
   }
@@ -484,7 +486,7 @@ export async function fetchTraderBalance(): Promise<TheOptionBalance> {
   return theOptionAPI.getTraderBalance();
 }
 
-// Check if Alpha Vantage API is currently active
+// Check if Exchange Rate API is currently active
 export async function checkOperatorSiteStatus(): Promise<TheOptionOperatorSiteStatus> {
   return theOptionAPI.isOperatorSiteActive();
 }

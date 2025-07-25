@@ -79,8 +79,8 @@ export const defaultCurrencyPairs = [
 // 初期設定
 const DEFAULT_SETTINGS: TradingSettings = {
   theoption: {
-    apiKey: undefined,
-    baseUrl: 'https://platformapidemo.theoption.com',
+    apiKey: 'f2971a33515852bd9969ccd9/latest',
+    baseUrl: 'https://v6.exchangerate-api.com/v6',
     demoMode: true,
   },
   signals: {

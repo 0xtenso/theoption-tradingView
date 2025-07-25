@@ -210,10 +210,10 @@ export default function APIStatusIndicator({ className = '' }: APIStatusIndicato
           <div className="mb-4 p-3 bg-blue-50 rounded-lg">
             <h4 className="text-sm font-medium text-blue-800 mb-1">API接続先</h4>
             <p className="text-xs text-blue-700 font-mono">
-              https://platformapidemo.theoption.com
+              https://v6.exchangerate-api.com/v6
             </p>
             <p className="text-xs text-blue-600 mt-1">
-              TheOption Platform Demo API
+              Exchange Rate API - Real-time Currency Data
             </p>
           </div>
 
