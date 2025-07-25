@@ -90,7 +90,7 @@ class TheOptionAPIService {
   private apiKey: string;
   private sessionToken?: string;
   private lastRequestTime = 0;
-  private requestDelay = 1000; // Exchange Rate API allows more frequent requests
+  private requestDelay = 3000; // Exchange Rate API - Update every 3 seconds
   private sessionID = "DEMO_SESSION"; // Demo session ID
 
   constructor(apiKey?: string) {
